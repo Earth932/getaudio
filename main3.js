@@ -34,10 +34,11 @@ navigator.mediaDevices
       console.log("audio connect");
 
       // log show volume average
-      //console.log(Math.round(average));
+      // console.log(Math.round(average));
       // colorPids(average);
     };
   })
   .catch(function (err) {
     /* handle the error */
+    console.log("Not Connect");
   });

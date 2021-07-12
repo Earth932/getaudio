@@ -1,149 +1,43 @@
-function hasUserMedia() {
-  //check if the browser supports the WebRTC
-  return !!(
-    navigator.getUserMedia ||
-    navigator.webkitGetUserMedia ||
-    navigator.mozGetUserMedia
-  );
-}
-
-if (navigator.getUserMedia) {
-  navigator.getUserMedia(
-    { audio: true, video: { width: 1280, height: 720 } },
-    function (stream) {
-      var video = document.querySelector("video");
-      video.srcObject = stream;
-      video.onloadedmetadata = function (e) {
-        video.play();
-      };
-    },
-    function (err) {
-      console.log("The following error occurred: " + err.name);
-    }
-  );
-}
-// alert
-// if (navigator.getUserMedia || navigator.webkitGetUserMedia) {
-//   alert("Microphone is connected with your system");
-// } else {
-//   alert("Microphone is not connected with your system");
-// }
-
-window.onload = function () {
-  "use strict";
-  var paths = document.getElementsByTagName("path");
-  var visualizer = document.getElementById("visualizer");
-  var mask = visualizer.getElementById("mask");
-  var h = document.getElementsByTagName("h1")[0];
-  var hSub = document.getElementsByTagName("h1")[1];
-  var AudioContext;
-  var audioContent;
-  var start = false;
-  var permission = false;
-  var path;
-  var seconds = 0;
-  var loud_volume_threshold = 30;
-
-  var soundAllowed = function (stream) {
-    permission = true;
-    var audioStream = audioContent.createMediaStreamSource(stream);
-    var analyser = audioContent.createAnalyser();
-    var fftSize = 1024;
-
-    analyser.fftSize = fftSize;
-    audioStream.connect(analyser);
-
-    var bufferLength = analyser.frequencyBinCount;
-    var frequencyArray = new Uint8Array(bufferLength);
-
-    visualizer.setAttribute("viewBox", "0 0 255 255");
-
-    for (var i = 0; i < 255; i++) {
-      path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("stroke-dasharray", "4,1");
-      mask.appendChild(path);
-    }
-    var doDraw = function () {
-      requestAnimationFrame(doDraw);
-      if (start) {
-        analyser.getByteFrequencyData(frequencyArray);
-        var adjustedLength;
-        for (var i = 0; i < 255; i++) {
-          adjustedLength =
-            Math.floor(frequencyArray[i]) - (Math.floor(frequencyArray[i]) % 5);
-          paths[i].setAttribute("d", "M " + i + ",255 l 0,-" + adjustedLength);
-        }
-        var video = document.querySelector("video");
-        video.srcObject = stream;
-        video.onloadedmetadata = function (e) {
-          video.play();
-        };
-      } else {
-        for (var i = 0; i < 255; i++) {
-          paths[i].setAttribute("d", "M " + i + ",255 l 0,-" + 0);
-        }
-      }
+navigator.mediaDevices
+  .getUserMedia({ audio: true, video: { width: 1280, height: 720 } })
+  .then(function (stream) {
+    var video = document.querySelector("video");
+    video.srcObject = stream;
+    video.onloadedmetadata = function (e) {
+      video.play();
+      console.log("media connect");
     };
-    var showVolume = function () {
-      setTimeout(showVolume, 500);
-      if (start) {
-        analyser.getByteFrequencyData(frequencyArray);
-        var total = 0;
-        for (var i = 0; i < 255; i++) {
-          var x = frequencyArray[i];
-          total += x * x;
-        }
-        var rms = Math.sqrt(total / bufferLength);
-        var db = 20 * (Math.log(rms) / Math.log(10));
-        db = Math.max(db, 0); // sanity check
-        h.innerHTML = Math.floor(db) + " dB";
-        h.className = "green-button";
+    audioContext = new AudioContext();
+    analyser = audioContext.createAnalyser();
+    microphone = audioContext.createMediaStreamSource(stream);
+    javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
 
-        if (db >= loud_volume_threshold) {
-          seconds += 0.5;
-          if (seconds >= 5) {
-            hSub.innerHTML =
-              "You’ve been in loud environment for<span> " +
-              Math.floor(seconds) +
-              " </span>seconds.";
-          }
-        } else {
-          seconds = 0;
-          hSub.innerHTML = "";
-        }
-      } else {
-        h.innerHTML = "";
-        hSub.innerHTML = "";
+    analyser.smoothingTimeConstant = 0.8;
+    analyser.fftSize = 1024;
+
+    microphone.connect(analyser);
+    analyser.connect(javascriptNode);
+    javascriptNode.connect(audioContext.destination);
+    javascriptNode.onaudioprocess = function () {
+      var array = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(array);
+      var values = 0;
+
+      var length = array.length;
+      for (var i = 0; i < length; i++) {
+        values += array[i];
       }
+
+      var average = values / length;
+
+      // log show audio connect
+      console.log("audio connect");
+
+      // log show volume average
+      //console.log(Math.round(average));
+      // colorPids(average);
     };
-
-    doDraw();
-    showVolume();
-  };
-
-  var soundNotAllowed = function (error) {
-    h.innerHTML = "You must allow your microphone.";
-    console.log(error);
-  };
-
-  document.getElementById("button").onclick = function () {
-    if (start) {
-      start = false;
-      this.innerHTML = "<span class='fa fa-play'></span>Unmute";
-      this.className = "green-button";
-    } else {
-      if (!permission) {
-        navigator.mediaDevices
-          .getUserMedia({ audio: true })
-          .then(soundAllowed)
-          .catch(soundNotAllowed);
-
-        AudioContext = window.AudioContext || window.webkitAudioContext;
-        audioContent = new AudioContext();
-      }
-      start = true;
-      this.innerHTML = "<span class='fa fa-stop'></span>Mute";
-      this.className = "red-button";
-    }
-  };
-};
+  })
+  .catch(function (err) {
+    /* handle the error */
+  });
